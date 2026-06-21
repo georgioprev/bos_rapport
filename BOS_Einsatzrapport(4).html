@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="BOS Rapport">
+<meta name="theme-color" content="#1a1a1a">
+<title>BOS Group – Einsatzrapport</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --black:#1a1a1a;
+  --gray:#4a4a4a;
+  --light:#f7f7f5;
+  --border:#d8d7d0;
+  --red:#c8000a;
+  --white:#ffffff;
+  --radius:8px;
+  --font:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;
+}
+html{height:100%;-webkit-tap-highlight-color:transparent;}
+body{font-family:var(--font);background:var(--light);color:var(--black);min-height:100%;overscroll-behavior:none;}
+
+/* TOP BAR */
+.topbar{
+  background:var(--black);color:#fff;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 1rem;height:52px;
+  position:sticky;top:0;z-index:200;
+}
+.topbar-left{display:flex;align-items:center;gap:10px;}
+.bos-badge{
+  background:var(--red);color:#fff;
+  font-size:11px;font-weight:800;letter-spacing:0.08em;
+  padding:3px 7px;border-radius:4px;
+}
+.topbar-title{font-size:15px;font-weight:500;color:#ddd;}
+.steps{display:flex;gap:5px;align-items:center;}
+.step-pip{width:7px;height:7px;border-radius:50%;background:#444;transition:all 0.3s;}
+.step-pip.active{background:var(--red);transform:scale(1.3);}
+.step-pip.done{background:#888;}
+
+/* PAGES */
+.page{display:none;padding:1rem;max-width:680px;margin:0 auto;padding-bottom:2rem;}
+.page.active{display:block;}
+
+/* CARD */
+.card{
+  background:var(--white);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:1.25rem;
+  margin-bottom:1rem;
+}
+.card+.card{margin-top:0;}
+.card-label{
+  font-size:10px;font-weight:700;letter-spacing:0.12em;
+  text-transform:uppercase;color:var(--gray);
+  margin-bottom:0.9rem;
+  padding-bottom:0.6rem;
+  border-bottom:1px solid var(--border);
+}
+
+/* FIELDS */
+.field{margin-bottom:0.85rem;}
+.field:last-child{margin-bottom:0;}
+.field label{
+  display:block;font-size:11px;font-weight:600;
+  letter-spacing:0.07em;text-transform:uppercase;
+  color:var(--gray);margin-bottom:5px;
+}
+.field input,.field select,.field textarea{
+  width:100%;padding:0.65rem 0.8rem;
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:var(--font);font-size:16px;color:var(--black);
+  background:var(--white);transition:border-color 0.15s;
+  -webkit-appearance:none;appearance:none;
+}
+.field input:focus,.field select:focus,.field textarea:focus{
+  outline:none;border-color:var(--black);
+}
+.field textarea{resize:vertical;min-height:90px;font-size:15px;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;}
+
+/* SELECT ARROW */
+.select-wrap{position:relative;}
+.select-wrap::after{
+  content:'▾';position:absolute;right:12px;top:50%;
+  transform:translateY(-50%);color:var(--gray);
+  pointer-events:none;font-size:14px;
+}
+.select-wrap select{padding-right:2rem;}
+
+/* MA TABLE */
+.ma-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -1.25rem;padding:0 1.25rem;}
+.ma-table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px;}
+.ma-table th{
+  text-align:left;font-size:10px;font-weight:700;
+  letter-spacing:0.09em;text-transform:uppercase;
+  color:var(--gray);padding:0 5px 8px 5px;
+  border-bottom:1.5px solid var(--border);white-space:nowrap;
+}
+.ma-table td{padding:3px 3px;border-bottom:1px solid #f0efea;vertical-align:middle;}
+.ma-table tr:last-child td{border-bottom:none;}
+.ma-table tr:nth-child(even) td{background:#fcfcfb;}
+.nr-cell{width:26px;text-align:center;font-size:11px;color:#aaa;font-weight:700;}
+.ma-table input{
+  width:100%;padding:7px 6px;
+  border:1.5px solid transparent;border-radius:5px;
+  font-family:var(--font);font-size:13px;background:transparent;
+  transition:border-color 0.15s,background 0.15s;
+  -webkit-appearance:none;
+}
+.ma-table input:focus{outline:none;border-color:var(--border);background:var(--light);}
+.ma-table input[type=time]{min-width:80px;}
+.ma-table input[type=number]{width:56px;text-align:center;}
+.std-cell{
+  text-align:center;font-weight:700;font-size:12px;
+  color:var(--black);white-space:nowrap;padding:0 6px;min-width:50px;
+}
+.std-cell.has-value{color:var(--red);}
+
+/* BUTTONS */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:0.8rem 1.4rem;border:none;border-radius:var(--radius);
+  font-family:var(--font);font-size:15px;font-weight:600;
+  cursor:pointer;transition:opacity 0.15s,transform 0.1s;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;
+}
+.btn:active{transform:scale(0.97);}
+.btn-primary{background:var(--black);color:#fff;}
+.btn-primary:active{opacity:0.85;}
+.btn-red{background:var(--red);color:#fff;}
+.btn-red:active{opacity:0.88;}
+.btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--black);}
+.btn-ghost:active{border-color:var(--black);}
+.btn-full{width:100%;}
+.btn-row{display:flex;gap:0.75rem;margin-top:0.75rem;}
+.btn-row.split{justify-content:space-between;}
+.btn-row.end{justify-content:flex-end;}
+
+/* PAGE HEADER */
+.ph{margin-bottom:1rem;}
+.ph h1{font-size:22px;font-weight:700;letter-spacing:-0.02em;line-height:1.2;}
+.ph p{font-size:14px;color:var(--gray);margin-top:4px;}
+
+/* REVIEW */
+.rv-row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid #f0efea;font-size:14px;gap:1rem;}
+.rv-row:last-child{border-bottom:none;}
+.rv-key{color:var(--gray);font-size:13px;flex-shrink:0;}
+.rv-val{font-weight:500;text-align:right;}
+.total-strip{
+  background:var(--black);color:#fff;border-radius:var(--radius);
+  padding:0.85rem 1rem;display:flex;justify-content:space-between;align-items:center;
+  margin-top:0.85rem;
+}
+.total-strip .big{font-size:22px;font-weight:700;}
+.total-strip .lbl{font-size:13px;color:#aaa;}
+
+/* SIG */
+.sig-label{font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--gray);margin-bottom:6px;margin-top:1.25rem;}
+.sig-label:first-child{margin-top:0;}
+.sig-wrap{border:1.5px solid var(--border);border-radius:var(--radius);background:#fafaf8;position:relative;overflow:hidden;}
+.sig-canvas{display:block;width:100%;touch-action:none;cursor:crosshair;}
+.sig-hint{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  color:#ccc;font-size:14px;pointer-events:none;user-select:none;white-space:nowrap;
+}
+.sig-clr{
+  position:absolute;top:8px;right:8px;
+  background:rgba(255,255,255,0.92);border:1px solid var(--border);
+  border-radius:5px;font-size:11px;font-weight:600;padding:4px 10px;
+  cursor:pointer;font-family:var(--font);color:var(--gray);
+}
+.divider{border:none;border-top:1px solid var(--border);margin:1.25rem 0;}
+
+/* SUCCESS */
+.success-wrap{text-align:center;padding:1.5rem 1rem;}
+.success-icon{
+  width:72px;height:72px;background:var(--black);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;
+  font-size:32px;color:#fff;
+}
+.success-wrap h2{font-size:22px;font-weight:700;margin-bottom:0.5rem;}
+.success-wrap p{color:var(--gray);font-size:14px;margin-bottom:1.5rem;line-height:1.6;}
+
+/* TOAST */
+.toast{
+  position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(80px);
+  background:var(--black);color:#fff;padding:0.75rem 1.25rem;border-radius:var(--radius);
+  font-size:14px;font-weight:500;z-index:999;transition:transform 0.3s;white-space:nowrap;
+}
+.toast.show{transform:translateX(-50%) translateY(0);}
+
+/* INSTALL BANNER */
+.install-banner{
+  background:#fff;border:1px solid var(--border);border-radius:var(--radius);
+  padding:1rem 1.25rem;margin-bottom:1rem;
+  display:flex;align-items:center;gap:12px;
+}
+.install-banner .bos-badge-sm{
+  background:var(--red);color:#fff;font-size:10px;font-weight:800;
+  padding:3px 6px;border-radius:3px;flex-shrink:0;
+}
+.install-banner p{font-size:13px;color:var(--gray);line-height:1.5;flex:1;}
+.install-banner strong{color:var(--black);}
+
+@media(max-width:420px){
+  .row3{grid-template-columns:1fr 1fr;}
+  .row3 .field:last-child{grid-column:1/-1;}
+  .ph h1{font-size:19px;}
+}
+/* PIN SCREEN */
+#pinScreen{
+  position:fixed;inset:0;background:var(--black);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:999;padding:2rem;
+}
+#pinScreen.hidden{display:none;}
+.pin-logo{
+  background:var(--red);color:#fff;font-size:18px;font-weight:800;
+  letter-spacing:0.08em;padding:6px 14px;border-radius:6px;margin-bottom:0.75rem;
+}
+.pin-title{color:#fff;font-size:20px;font-weight:700;margin-bottom:0.4rem;}
+.pin-sub{color:#888;font-size:14px;margin-bottom:2rem;text-align:center;}
+.pin-dots{display:flex;gap:14px;margin-bottom:2rem;}
+.pin-dot{
+  width:16px;height:16px;border-radius:50%;
+  border:2px solid #555;background:transparent;
+  transition:background 0.15s,border-color 0.15s;
+}
+.pin-dot.filled{background:#fff;border-color:#fff;}
+.pin-pad{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:12px;width:100%;max-width:280px;
+}
+.pin-key{
+  background:#2a2a2a;color:#fff;border:none;border-radius:var(--radius);
+  font-family:var(--font);font-size:22px;font-weight:500;
+  height:64px;cursor:pointer;transition:background 0.1s;
+  -webkit-tap-highlight-color:transparent;user-select:none;
+}
+.pin-key:active{background:#3a3a3a;}
+.pin-key.del{font-size:18px;color:#aaa;}
+.pin-key.empty{background:transparent;pointer-events:none;}
+.pin-error{
+  color:var(--red);font-size:13px;font-weight:600;
+  margin-top:1rem;height:20px;text-align:center;
+  opacity:0;transition:opacity 0.2s;
+}
+.pin-error.show{opacity:1;}
+.pin-hint{color:#555;font-size:11px;margin-top:1.5rem;text-align:center;line-height:1.6;}
+</style>
+</head>
+<body>
+
+<!-- PIN SCREEN -->
+<div id="pinScreen">
+  <div class="pin-logo">BOS</div>
+  <div class="pin-title">Einsatzrapport</div>
+  <div class="pin-sub">Bitte PIN eingeben</div>
+  <div class="pin-dots">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+  <div class="pin-pad">
+    <button class="pin-key" onclick="pinKey('1')">1</button>
+    <button class="pin-key" onclick="pinKey('2')">2</button>
+    <button class="pin-key" onclick="pinKey('3')">3</button>
+    <button class="pin-key" onclick="pinKey('4')">4</button>
+    <button class="pin-key" onclick="pinKey('5')">5</button>
+    <button class="pin-key" onclick="pinKey('6')">6</button>
+    <button class="pin-key" onclick="pinKey('7')">7</button>
+    <button class="pin-key" onclick="pinKey('8')">8</button>
+    <button class="pin-key" onclick="pinKey('9')">9</button>
+    <button class="pin-key empty"></button>
+    <button class="pin-key" onclick="pinKey('0')">0</button>
+    <button class="pin-key del" onclick="pinDel()">⌫</button>
+  </div>
+  <div class="pin-error" id="pinError">Falscher PIN – bitte erneut versuchen</div>
+  <div class="pin-hint">PIN vergessen? Kontakt: info@bos-group.org</div>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="bos-badge">BOS</span>
+    <span class="topbar-title">Einsatzrapport</span>
+  </div>
+  <div class="steps">
+    <div class="step-pip active" id="pip0"></div>
+    <div class="step-pip" id="pip1"></div>
+    <div class="step-pip" id="pip2"></div>
+    <div class="step-pip" id="pip3"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- PAGE 0: EINSATZDATEN -->
+<div class="page active" id="p0">
+  <div class="ph" style="margin-top:1rem;">
+    <h1>Einsatzdaten</h1>
+    <p>Allgemeine Informationen zum Einsatz</p>
+  </div>
+
+  <div id="installBanner" class="install-banner" style="display:none;">
+    <span class="bos-badge-sm">TIPP</span>
+    <p><strong>Als App speichern:</strong> Teilen → „Zum Home-Bildschirm" (iOS) oder Menü → „Zum Startbildschirm" (Android)</p>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Termin &amp; Ort</div>
+    <div class="row3">
+      <div class="field">
+        <label>Tag</label>
+        <div class="select-wrap">
+          <select id="tag">
+            <option value="">–</option>
+            <option>Montag</option><option>Dienstag</option><option>Mittwoch</option>
+            <option>Donnerstag</option><option>Freitag</option><option>Samstag</option><option>Sonntag</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Datum</label>
+        <input type="date" id="datum">
+      </div>
+      <div class="field">
+        <label>Ort</label>
+        <input type="text" id="ort" placeholder="Stadt / Venue" autocomplete="off">
+      </div>
+    </div>
+    <div class="row3">
+      <div class="field">
+        <label>Kunde</label>
+        <input type="text" id="kunde" placeholder="Kundenname" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Veranstaltung</label>
+        <input type="text" id="veranstaltung" placeholder="z.B. Konzert, Messe" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Gewerk</label>
+        <input type="text" id="gewerk" placeholder="z.B. Sicherheit" autocomplete="off">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Ansprechpersonen</div>
+    <div class="row2">
+      <div class="field">
+        <label>Ansprechperson Veranstalter</label>
+        <input type="text" id="ap_ver" placeholder="Name" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Ansprechperson BOS</label>
+        <input type="text" id="ap_bos" placeholder="Name" autocomplete="off">
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row end">
+    <button class="btn btn-primary" onclick="nav(1)">Weiter &rarr;</button>
+  </div>
+</div>
+
+<!-- PAGE 1: MITARBEITER -->
+<div class="page" id="p1">
+  <div class="ph" style="margin-top:1rem;">
+    <h1>Mitarbeiter &amp; Zeiten</h1>
+    <p>Stunden werden automatisch berechnet</p>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Einsatzteam</div>
+    <div class="ma-scroll">
+      <table class="ma-table">
+        <thead>
+          <tr>
+            <th style="width:28px"></th>
+            <th>Name</th>
+            <th>Tätigkeit</th>
+            <th>Von</th>
+            <th>Bis</th>
+            <th>Pause</th>
+            <th>Std.</th>
+          </tr>
+        </thead>
+        <tbody id="maBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Bemerkung</div>
+    <div class="field">
+      <textarea id="bemerkung" placeholder="Besondere Vorkommnisse, Hinweise..."></textarea>
+    </div>
+  </div>
+
+  <div class="btn-row split">
+    <button class="btn btn-ghost" onclick="nav(0)">&larr; Zurück</button>
+    <button class="btn btn-primary" onclick="nav(2)">Weiter &rarr;</button>
+  </div>
+</div>
+
+<!-- PAGE 2: PRÜFEN -->
+<div class="page" id="p2">
+  <div class="ph" style="margin-top:1rem;">
+    <h1>Prüfen</h1>
+    <p>Alle Angaben kontrollieren</p>
+  </div>
+  <div class="card" id="reviewCard"></div>
+  <div class="btn-row split">
+    <button class="btn btn-ghost" onclick="nav(1)">&larr; Zurück</button>
+    <button class="btn btn-primary" onclick="nav(3)">Weiter &rarr; Unterschriften</button>
+  </div>
+</div>
+
+<!-- PAGE 3: UNTERSCHRIFTEN -->
+<div class="page" id="p3">
+  <div class="ph" style="margin-top:1rem;">
+    <h1>Unterschriften</h1>
+    <p>Bitte beide Unterschriften einholen</p>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Unterschrift Veranstalter</div>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:1rem;">Gerät bitte dem Veranstalter übergeben.</p>
+    <div class="sig-label">Veranstalter</div>
+    <div class="sig-wrap">
+      <canvas class="sig-canvas" id="sigVer" height="160"></canvas>
+      <div class="sig-hint" id="hintVer">Hier unterschreiben</div>
+      <button class="sig-clr" onclick="clearSig('sigVer','hintVer')">Löschen</button>
+    </div>
+
+    <hr class="divider">
+
+    <div class="sig-label">Einsatzleiter BOS</div>
+    <div class="sig-wrap">
+      <canvas class="sig-canvas" id="sigBOS" height="160"></canvas>
+      <div class="sig-hint" id="hintBOS">Hier unterschreiben</div>
+      <button class="sig-clr" onclick="clearSig('sigBOS','hintBOS')">Löschen</button>
+    </div>
+  </div>
+
+  <div class="btn-row split">
+    <button class="btn btn-ghost" onclick="nav(2)">&larr; Zurück</button>
+    <button class="btn btn-red" onclick="finish()">&#10003; Abschliessen &amp; PDF</button>
+  </div>
+</div>
+
+<!-- PAGE 4: FERTIG -->
+<div class="page" id="p4">
+  <div class="card" style="margin-top:1rem;">
+    <div class="success-wrap">
+      <div class="success-icon">✓</div>
+      <h2>Rapport abgeschlossen</h2>
+      <p id="successMsg">Der Einsatzrapport wurde erfolgreich erstellt.</p>
+
+      <!-- iOS: direkter Link auf data-URL, kein JS-Download nötig -->
+      <a id="pdfLink" href="#" target="_blank"
+         style="display:none;text-decoration:none;width:100%">
+        <button class="btn btn-primary btn-full" type="button">PDF öffnen &amp; sichern</button>
+      </a>
+
+      <!-- iOS Anleitung -->
+      <div id="iosHint" style="display:none;background:var(--light);border:1px solid var(--border);border-radius:var(--radius);padding:0.9rem 1rem;margin-top:0.75rem;text-align:left;">
+        <p style="font-size:13px;font-weight:700;margin-bottom:0.4rem;">So speicherst du das PDF:</p>
+        <p style="font-size:13px;color:var(--gray);line-height:1.7;">
+          1. Auf <strong style="color:var(--black)">„PDF öffnen"</strong> tippen<br>
+          2. Im PDF unten auf das <strong style="color:var(--black)">Teilen-Symbol</strong> ☐↑ tippen<br>
+          3. <strong style="color:var(--black)">„In Dateien sichern"</strong> oder <strong style="color:var(--black)">per Mail senden</strong> wählen
+        </p>
+      </div>
+
+      <!-- Desktop + Android -->
+      <button id="dlBtn" class="btn btn-primary btn-full" onclick="dlPDF()" style="display:none;">PDF herunterladen</button>
+
+      <!-- Native Share (Android / iOS falls unterstützt) -->
+      <button id="shareBtn" class="btn btn-ghost btn-full" onclick="sharePDF()" style="display:none;margin-top:0.5rem;">PDF teilen ↑</button>
+
+      <button class="btn btn-ghost btn-full" onclick="resetAll()" style="margin-top:0.75rem;">Neuen Rapport erstellen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── PIN ────────────────────────────────────────────────────────
+const PIN_CORRECT = '1234'; // ← PIN hier ändern
+let pinEntry = '';
+
+function pinKey(k){
+  if(pinEntry.length>=4) return;
+  pinEntry+=k;
+  updatePinDots();
+  if(pinEntry.length===4) setTimeout(checkPin,120);
+}
+
+function pinDel(){
+  pinEntry=pinEntry.slice(0,-1);
+  updatePinDots();
+  document.getElementById('pinError').classList.remove('show');
+}
+
+function updatePinDots(){
+  for(let i=0;i<4;i++){
+    document.getElementById('d'+i).classList.toggle('filled', i<pinEntry.length);
+  }
+}
+
+function checkPin(){
+  if(pinEntry===PIN_CORRECT){
+    const ps=document.getElementById('pinScreen');
+    ps.style.transition='opacity 0.35s';
+    ps.style.opacity='0';
+    setTimeout(()=>ps.classList.add('hidden'),350);
+  } else {
+    pinEntry='';
+    updatePinDots();
+    const err=document.getElementById('pinError');
+    err.classList.add('show');
+    // Shake animation
+    const pad=document.querySelector('.pin-dots');
+    pad.style.transition='transform 0.07s';
+    let s=0;
+    const shake=setInterval(()=>{
+      pad.style.transform=`translateX(${s%2===0?-8:8}px)`;
+      s++; if(s>5){clearInterval(shake);pad.style.transform='';}
+    },70);
+  }
+}
+
+// Allow keyboard input on desktop
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('pinScreen').classList.contains('hidden')) return;
+  if(e.key>='0'&&e.key<='9') pinKey(e.key);
+  if(e.key==='Backspace') pinDel();
+});
+
+// ─── STATE ──────────────────────────────────────────────────────
+const S = { sigCtx:{}, pdfBlob:null, pdfDataUrl:null, pdfFilename:null };
+
+// ─── INIT ───────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', ()=>{
+  // Set today
+  const now = new Date();
+  document.getElementById('datum').value = now.toISOString().split('T')[0];
+  const days=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+  document.getElementById('tag').value = days[now.getDay()];
+
+  buildTable();
+
+  // Show install tip if on mobile and not standalone
+  if(/Mobi|Android/i.test(navigator.userAgent) && !window.matchMedia('(display-mode: standalone)').matches){
+    document.getElementById('installBanner').style.display='flex';
+  }
+
+  // Show native share button on mobile
+  if(navigator.share){
+    document.getElementById('shareBtn').style.display='block';
+  }
+});
+
+// ─── TABLE ──────────────────────────────────────────────────────
+function buildTable(){
+  const b=document.getElementById('maBody'); b.innerHTML='';
+  for(let i=1;i<=10;i++){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="nr-cell">${i}</td>
+      <td><input type="text" placeholder="Name" id="n${i}" autocomplete="off" autocorrect="off"></td>
+      <td><input type="text" placeholder="Tätigkeit" id="t${i}" autocomplete="off" autocorrect="off"></td>
+      <td><input type="time" id="v${i}" onchange="calc(${i})"></td>
+      <td><input type="time" id="b${i}" onchange="calc(${i})"></td>
+      <td><input type="number" placeholder="0" min="0" max="480" id="p${i}" onchange="calc(${i})"></td>
+      <td class="std-cell" id="s${i}">–</td>`;
+    b.appendChild(tr);
+  }
+}
+
+function calc(i){
+  const v=document.getElementById('v'+i).value;
+  const b=document.getElementById('b'+i).value;
+  const p=parseInt(document.getElementById('p'+i).value)||0;
+  const el=document.getElementById('s'+i);
+  if(!v||!b){el.textContent='–';el.className='std-cell';return;}
+  const [vh,vm]=v.split(':').map(Number),[bh,bm]=b.split(':').map(Number);
+  let m=(bh*60+bm)-(vh*60+vm)-p;
+  if(m<0)m+=1440;
+  const h=Math.floor(m/60),mn=m%60;
+  el.textContent=mn>0?h+'h '+mn+'m':h+'h';
+  el.className='std-cell has-value';
+}
+
+// ─── NAV ────────────────────────────────────────────────────────
+function nav(n){
+  document.querySelectorAll('.page').forEach((p,i)=>p.classList.toggle('active',i===n));
+  document.querySelectorAll('.step-pip').forEach((d,i)=>{
+    d.classList.toggle('active',i===n);
+    d.classList.toggle('done',i<n);
+  });
+  if(n===2) buildReview();
+  // Init signature canvases only when page is visible and has real dimensions
+  if(n===3) requestAnimationFrame(()=>{ requestAnimationFrame(ensureSigInit); });
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ─── REVIEW ─────────────────────────────────────────────────────
+function buildReview(){
+  const G=id=>document.getElementById(id).value;
+  let html='<div class="card-label">Einsatz</div>';
+  const meta=[
+    ['Tag',G('tag')],['Datum',fmtDate(G('datum'))],['Ort',G('ort')],
+    ['Kunde',G('kunde')],['Veranstaltung',G('veranstaltung')],['Gewerk',G('gewerk')],
+    ['Ansprechperson Veranstalter',G('ap_ver')],['Ansprechperson BOS',G('ap_bos')],
+  ];
+  meta.forEach(([k,v])=>{
+    if(v) html+=`<div class="rv-row"><span class="rv-key">${k}</span><span class="rv-val">${v}</span></div>`;
+  });
+
+  html+='<div class="card-label" style="margin-top:1rem;">Mitarbeiter</div>';
+  let totM=0,cnt=0;
+  for(let i=1;i<=10;i++){
+    const name=document.getElementById('n'+i).value;
+    if(!name)continue;
+    const taet=document.getElementById('t'+i).value;
+    const von=document.getElementById('v'+i).value;
+    const bis=document.getElementById('b'+i).value;
+    const pause=parseInt(document.getElementById('p'+i).value)||0;
+    const std=document.getElementById('s'+i).textContent;
+    if(von&&bis){
+      const [vh,vm]=von.split(':').map(Number),[bh,bm]=bis.split(':').map(Number);
+      let m=(bh*60+bm)-(vh*60+vm)-pause; if(m<0)m+=1440; totM+=m;
+    }
+    cnt++;
+    html+=`<div class="rv-row">
+      <span class="rv-key">${i}. ${name}${taet?' · '+taet:''}</span>
+      <span class="rv-val">${von||'–'} – ${bis||'–'} &nbsp;<strong>${std}</strong></span>
+    </div>`;
+  }
+  const th=Math.floor(totM/60),tm=totM%60;
+  html+=`<div class="total-strip">
+    <div><div class="lbl">${cnt} Mitarbeiter</div><div style="font-size:13px;margin-top:2px;">Gesamtstunden</div></div>
+    <span class="big">${tm>0?th+'h '+tm+'m':th+'h'}</span>
+  </div>`;
+  const bem=document.getElementById('bemerkung').value;
+  if(bem) html+=`<div style="margin-top:1rem;font-size:13px;color:var(--gray);line-height:1.5;"><strong style="color:var(--black)">Bemerkung:</strong> ${bem}</div>`;
+  document.getElementById('reviewCard').innerHTML=html;
+}
+
+// ─── SIGNATURE ──────────────────────────────────────────────────
+let sigInitDone = false;
+
+function ensureSigInit(){
+  if(sigInitDone) return;
+  sigInitDone = true;
+  initSig('sigVer','hintVer');
+  initSig('sigBOS','hintBOS');
+}
+
+function initSig(id, hintId){
+  const cv = document.getElementById(id);
+  const wrap = cv.parentElement;
+
+  // Set canvas internal size to match its actual rendered CSS size
+  function setSize(){
+    const w = wrap.getBoundingClientRect().width || wrap.offsetWidth;
+    if(w === 0) return false; // not visible yet
+    cv.width  = Math.floor(w);
+    cv.height = 160;
+    // Reset context state after resize (resize clears canvas)
+    const ctx = cv.getContext('2d');
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth   = 2.5;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    return true;
+  }
+
+  if(!setSize()){
+    // Fallback: retry once browser has painted
+    requestAnimationFrame(()=>{ setSize(); });
+  }
+
+  window.addEventListener('resize', ()=>{
+    const had = S.sigCtx[id]?.hasData;
+    // Snapshot before resize
+    const snap = document.createElement('canvas');
+    snap.width = cv.width; snap.height = cv.height;
+    snap.getContext('2d').drawImage(cv, 0, 0);
+    setSize();
+    if(had) cv.getContext('2d').drawImage(snap, 0, 0, cv.width, cv.height);
+  });
+
+  S.sigCtx[id] = { drawing: false, hasData: false };
+
+  function getXY(e){
+    const r   = cv.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    // canvas internal px / CSS px ratio
+    const sx  = cv.width  / r.width;
+    const sy  = cv.height / r.height;
+    return {
+      x: (src.clientX - r.left) * sx,
+      y: (src.clientY - r.top)  * sy
+    };
+  }
+
+  function onStart(e){
+    e.preventDefault();
+    const p   = getXY(e);
+    const ctx = cv.getContext('2d');
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth   = 2.5;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    S.sigCtx[id].drawing = true;
+    S.sigCtx[id].hasData = true;
+    document.getElementById(hintId).style.display = 'none';
+  }
+
+  function onMove(e){
+    e.preventDefault();
+    if(!S.sigCtx[id].drawing) return;
+    const p   = getXY(e);
+    const ctx = cv.getContext('2d');
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+
+  function onEnd(e){
+    e.preventDefault();
+    S.sigCtx[id].drawing = false;
+  }
+
+  // Mouse
+  cv.addEventListener('mousedown',  onStart);
+  cv.addEventListener('mousemove',  onMove);
+  cv.addEventListener('mouseup',    onEnd);
+  cv.addEventListener('mouseleave', onEnd);
+  // Touch — must be non-passive to call preventDefault (stops scroll)
+  cv.addEventListener('touchstart',  onStart, { passive: false });
+  cv.addEventListener('touchmove',   onMove,  { passive: false });
+  cv.addEventListener('touchend',    onEnd,   { passive: false });
+  cv.addEventListener('touchcancel', onEnd,   { passive: false });
+}
+
+function clearSig(id, hintId){
+  const cv  = document.getElementById(id);
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  S.sigCtx[id] = { drawing: false, hasData: false };
+  document.getElementById(hintId).style.display = 'block';
+}
+
+// ─── PDF ────────────────────────────────────────────────────────
+function isIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)||
+    (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+}
+
+function finish(){
+  if(!window.jspdf){showToast('PDF-Bibliothek lädt... bitte kurz warten.');setTimeout(finish,1200);return;}
+  buildPDF();
+}
+
+function buildPDF(){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const ML=15,MR=195,CW=180,W=210;
+
+  // Header left
+  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(30);
+  doc.text('BOS Group OHG',ML,18);
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(80);
+  doc.text('Radolfzeller Straße 31',ML,23);
+  doc.text('78467 Konstanz',ML,27);
+  doc.text('info@bos-group.org',ML,31);
+
+  // Header right - BOS GROUP
+  doc.setFont('helvetica','bold');doc.setFontSize(26);doc.setTextColor(0);
+  doc.text('BOS',MR,22,{align:'right'});
+  doc.setFontSize(13);
+  doc.text('GROUP',MR,30,{align:'right'});
+
+  // Separator line
+  doc.setDrawColor(220);doc.setLineWidth(0.4);
+  doc.line(ML,36,MR,36);
+
+  // Title
+  doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(0);
+  doc.text('Einsatzrapport',ML,46);
+  doc.setDrawColor(0);doc.setLineWidth(0.5);
+  doc.line(ML,48,ML+55,48);
+
+  // Meta fields
+  let y=58;
+  const G=id=>document.getElementById(id).value||'–';
+  const field=(lbl,val,x,yy,lblW=18)=>{
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(120);
+    doc.text(lbl+':',x,yy);
+    doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(0);
+    doc.text(val,x+lblW,yy);
+  };
+
+  field('Tag',G('tag'),ML,y,10);
+  field('Datum',fmtDate(G('datum')),ML+45,y,16);
+  field('Ort',G('ort'),ML+105,y,10);
+  y+=8;
+  field('Kunde',G('kunde'),ML,y,14);
+  field('Veranstaltung',G('veranstaltung'),ML+45,y,28);
+  field('Gewerk',G('gewerk'),ML+105,y,16);
+  y+=8;
+  field('Ansprechperson Veranstalter',G('ap_ver'),ML,y,58);
+  y+=7;
+  field('Ansprechperson BOS',G('ap_bos'),ML,y,42);
+  y+=12;
+
+  // Table header
+  const cols=[8,40,32,20,20,16,18]; // mm widths
+  const hdrs=['Nr.','Name Mitarbeiter','Tätigkeit','Von','Bis','Pause','Std.'];
+  const rH=7.5;
+  doc.setFillColor(20,20,20);doc.rect(ML,y,CW,rH,'F');
+  doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(7.5);
+  let xc=ML+2;
+  hdrs.forEach((h,i)=>{doc.text(h,xc,y+5);xc+=cols[i];});
+  y+=rH;
+
+  // Table rows
+  let totM=0;
+  for(let i=1;i<=10;i++){
+    const name=document.getElementById('n'+i).value;
+    const taet=document.getElementById('t'+i).value;
+    const von=document.getElementById('v'+i).value;
+    const bis=document.getElementById('b'+i).value;
+    const pause=document.getElementById('p'+i).value;
+    const std=document.getElementById('s'+i).textContent;
+
+    if(i%2===0){doc.setFillColor(248,248,246);doc.rect(ML,y,CW,rH,'F');}
+    doc.setDrawColor(215);doc.setLineWidth(0.15);doc.rect(ML,y,CW,rH);
+
+    doc.setTextColor(0);doc.setFont('helvetica','normal');doc.setFontSize(8.5);
+    xc=ML+2;
+    [String(i),name,taet,von,bis,pause?pause+'\'':'',std==='–'?'':std].forEach((v,j)=>{
+      doc.text(v||'',xc,y+5);xc+=cols[j];
+    });
+
+    if(von&&bis){
+      const[vh,vm]=von.split(':').map(Number),[bh,bm]=bis.split(':').map(Number);
+      let m=(bh*60+bm)-(vh*60+vm)-(parseInt(pause)||0);
+      if(m<0)m+=1440;totM+=m;
+    }
+    y+=rH;
+  }
+
+  // Total row
+  const th2=Math.floor(totM/60),tm2=totM%60;
+  doc.setFillColor(20,20,20);doc.rect(ML,y,CW,rH,'F');
+  doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(8.5);
+  doc.text('Gesamtstunden',ML+2,y+5);
+  doc.text(tm2>0?th2+'h '+tm2+'m':th2+'h',MR-2,y+5,{align:'right'});
+  y+=rH+8;
+
+  // Bemerkung
+  const bem=document.getElementById('bemerkung').value;
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(120);
+  doc.text('Bemerkung:',ML,y);
+  if(bem){
+    doc.setTextColor(0);doc.setFontSize(9);
+    const lines=doc.splitTextToSize(bem,CW);
+    doc.text(lines,ML,y+6);
+    y+=6+lines.length*5+6;
+  } else {
+    doc.setDrawColor(200);doc.setLineWidth(0.3);
+    doc.line(ML,y+7,MR,y+7);doc.line(ML,y+14,MR,y+14);doc.line(ML,y+21,MR,y+21);
+    y+=28;
+  }
+
+  // Signature area
+  const sigY=Math.max(y+4,218);
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(120);
+  doc.text('Ort, Datum',ML,sigY);
+  doc.text('Unterschrift Veranstalter',ML+58,sigY);
+  doc.text('Unterschrift Einsatzleiter BOS',ML+130,sigY);
+
+  doc.setDrawColor(150);doc.setLineWidth(0.4);
+  doc.line(ML,sigY+18,ML+40,sigY+18);
+  doc.line(ML+58,sigY+18,ML+125,sigY+18);
+  doc.line(ML+130,sigY+18,MR,sigY+18);
+
+  // Ort + Datum text
+  const ortV=document.getElementById('ort').value;
+  const datV=fmtDate(document.getElementById('datum').value);
+  doc.setTextColor(0);doc.setFontSize(9.5);doc.setFont('helvetica','normal');
+  doc.text((ortV?ortV+', ':'')+datV,ML,sigY+14);
+
+  // Embed signatures
+  const addSig=(canId,x,sigYY)=>{
+    if(S.sigCtx[canId]?.hasData){
+      const cv=document.getElementById(canId);
+      try{doc.addImage(cv.toDataURL('image/png'),'PNG',x,sigYY-14,62,18);}catch(e){}
+    }
+  };
+  addSig('sigVer',ML+50,sigY);
+  addSig('sigBOS',ML+122,sigY);
+
+  // Footer
+  doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(160);
+  doc.text('Der Rapport muss stets der Wahrheit entsprechend ausgefüllt und sorgfältig überprüft werden.',W/2,285,{align:'center'});
+  doc.text('Die Unterschriften des BOS-Einsatzleiters und des Veranstalters gelten als zwingend.',W/2,289,{align:'center'});
+
+  S.pdfBlob=doc.output('blob');
+  S.pdfDataUrl=doc.output('datauristring');
+
+  const datum2=document.getElementById('datum').value||'rapport';
+  const kunde2=document.getElementById('kunde').value||'BOS';
+  const fname=`BOS_Rapport_${kunde2}_${datum2}.pdf`;
+  S.pdfFilename=fname;
+
+  if(isIOS()){
+    // iOS: set href directly on <a> tag — Safari opens it natively as PDF
+    const link=document.getElementById('pdfLink');
+    link.href=S.pdfDataUrl;
+    link.download=fname;
+    link.style.display='block';
+    document.getElementById('iosHint').style.display='block';
+    // Also offer native share if available
+    if(navigator.share && navigator.canShare){
+      document.getElementById('shareBtn').style.display='block';
+    }
+  } else {
+    document.getElementById('dlBtn').style.display='block';
+    if(navigator.share && navigator.canShare){
+      document.getElementById('shareBtn').style.display='block';
+    }
+  }
+  nav(4);
+}
+
+function dlPDF(){
+  if(!S.pdfBlob)return;
+  const url=URL.createObjectURL(S.pdfBlob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=S.pdfFilename||'BOS_Rapport.pdf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+async function sharePDF(){
+  if(!S.pdfBlob)return;
+  const file=new File([S.pdfBlob],S.pdfFilename||'BOS_Rapport.pdf',{type:'application/pdf'});
+  try{
+    if(navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'BOS Einsatzrapport'});
+    }
+  }catch(e){
+    if(e.name!=='AbortError') dlPDF();
+  }
+}
+
+function resetAll(){
+  S.pdfBlob=null; S.pdfDataUrl=null; S.pdfFilename=null;
+  sigInitDone = false; // allow re-init on next visit to sig page
+  const now=new Date();
+  document.getElementById('datum').value=now.toISOString().split('T')[0];
+  const days=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+  document.getElementById('tag').value=days[now.getDay()];
+  ['ort','kunde','veranstaltung','gewerk','ap_ver','ap_bos','bemerkung']
+    .forEach(id=>document.getElementById(id).value='');
+  // Reset success page buttons
+  ['pdfLink','iosHint','dlBtn','shareBtn'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display='none';
+  });
+  const link=document.getElementById('pdfLink');
+  if(link) link.href='#';
+  buildTable();
+  nav(0);
+}
+
+function fmtDate(d){
+  if(!d)return'';
+  const[y,m,day]=d.split('-');return`${day}.${m}.${y}`;
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+</script>
+</body>
+</html>
