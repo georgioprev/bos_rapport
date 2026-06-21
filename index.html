@@ -561,8 +561,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('tag').value = days[now.getDay()];
 
   buildTable();
-  initSig('sigVer','hintVer');
-  initSig('sigBOS','hintBOS');
 
   // Show install tip if on mobile and not standalone
   if(/Mobi|Android/i.test(navigator.userAgent) && !window.matchMedia('(display-mode: standalone)').matches){
@@ -613,7 +611,9 @@ function nav(n){
     d.classList.toggle('active',i===n);
     d.classList.toggle('done',i<n);
   });
-  if(n===2)buildReview();
+  if(n===2) buildReview();
+  // Init signature canvases only when page is visible and has real dimensions
+  if(n===3) requestAnimationFrame(()=>{ requestAnimationFrame(ensureSigInit); });
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -661,98 +661,112 @@ function buildReview(){
 }
 
 // ─── SIGNATURE ──────────────────────────────────────────────────
-function initSig(id,hintId){
-  const cv=document.getElementById(id);
-  const wrap=cv.parentElement;
+let sigInitDone = false;
 
-  function resize(){
-    // Save existing drawing
-    const tmp=document.createElement('canvas');
-    tmp.width=cv.width; tmp.height=cv.height;
-    tmp.getContext('2d').drawImage(cv,0,0);
+function ensureSigInit(){
+  if(sigInitDone) return;
+  sigInitDone = true;
+  initSig('sigVer','hintVer');
+  initSig('sigBOS','hintBOS');
+}
 
-    // Resize to physical pixels (no DPR scaling — keeps coord math simple)
-    const w=wrap.clientWidth;
-    cv.width=w;
-    cv.height=160;
+function initSig(id, hintId){
+  const cv = document.getElementById(id);
+  const wrap = cv.parentElement;
 
-    // Restore drawing & reset style
-    const ctx=cv.getContext('2d');
-    ctx.drawImage(tmp,0,0,cv.width,cv.height);
-    ctx.strokeStyle='#1a1a1a';
-    ctx.lineWidth=2.5;
-    ctx.lineCap='round';
-    ctx.lineJoin='round';
-  }
-  resize();
-  window.addEventListener('resize',()=>resize());
-  S.sigCtx[id]={drawing:false,hasData:false};
-
-  function getCtx(){
-    const ctx=cv.getContext('2d');
-    ctx.strokeStyle='#1a1a1a';
-    ctx.lineWidth=2.5;
-    ctx.lineCap='round';
-    ctx.lineJoin='round';
-    return ctx;
+  // Set canvas internal size to match its actual rendered CSS size
+  function setSize(){
+    const w = wrap.getBoundingClientRect().width || wrap.offsetWidth;
+    if(w === 0) return false; // not visible yet
+    cv.width  = Math.floor(w);
+    cv.height = 160;
+    // Reset context state after resize (resize clears canvas)
+    const ctx = cv.getContext('2d');
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth   = 2.5;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    return true;
   }
 
-  // Get position relative to canvas — works for both touch and mouse
-  function pos(e){
-    const r=cv.getBoundingClientRect();
-    const src=e.touches?e.touches[0]:e;
-    // Scale from CSS pixels to canvas pixels
-    const scaleX=cv.width/r.width;
-    const scaleY=cv.height/r.height;
-    return{
-      x:(src.clientX-r.left)*scaleX,
-      y:(src.clientY-r.top)*scaleY
+  if(!setSize()){
+    // Fallback: retry once browser has painted
+    requestAnimationFrame(()=>{ setSize(); });
+  }
+
+  window.addEventListener('resize', ()=>{
+    const had = S.sigCtx[id]?.hasData;
+    // Snapshot before resize
+    const snap = document.createElement('canvas');
+    snap.width = cv.width; snap.height = cv.height;
+    snap.getContext('2d').drawImage(cv, 0, 0);
+    setSize();
+    if(had) cv.getContext('2d').drawImage(snap, 0, 0, cv.width, cv.height);
+  });
+
+  S.sigCtx[id] = { drawing: false, hasData: false };
+
+  function getXY(e){
+    const r   = cv.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    // canvas internal px / CSS px ratio
+    const sx  = cv.width  / r.width;
+    const sy  = cv.height / r.height;
+    return {
+      x: (src.clientX - r.left) * sx,
+      y: (src.clientY - r.top)  * sy
     };
   }
 
-  function start(e){
+  function onStart(e){
     e.preventDefault();
-    e.stopPropagation();
-    const p=pos(e);
-    S.sigCtx[id].drawing=true;
-    S.sigCtx[id].hasData=true;
-    const ctx=getCtx();
+    const p   = getXY(e);
+    const ctx = cv.getContext('2d');
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth   = 2.5;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
     ctx.beginPath();
-    ctx.moveTo(p.x,p.y);
-    document.getElementById(hintId).style.display='none';
+    ctx.moveTo(p.x, p.y);
+    S.sigCtx[id].drawing = true;
+    S.sigCtx[id].hasData = true;
+    document.getElementById(hintId).style.display = 'none';
   }
-  function move(e){
+
+  function onMove(e){
     e.preventDefault();
-    e.stopPropagation();
-    if(!S.sigCtx[id].drawing)return;
-    const p=pos(e);
-    const ctx=getCtx();
-    ctx.lineTo(p.x,p.y);
+    if(!S.sigCtx[id].drawing) return;
+    const p   = getXY(e);
+    const ctx = cv.getContext('2d');
+    ctx.lineTo(p.x, p.y);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(p.x,p.y);
-  }
-  function end(e){
-    e.preventDefault();
-    S.sigCtx[id].drawing=false;
+    ctx.moveTo(p.x, p.y);
   }
 
-  cv.addEventListener('mousedown',start);
-  cv.addEventListener('mousemove',move);
-  cv.addEventListener('mouseup',end);
-  cv.addEventListener('mouseleave',end);
-  cv.addEventListener('touchstart',start,{passive:false});
-  cv.addEventListener('touchmove',move,{passive:false});
-  cv.addEventListener('touchend',end,{passive:false});
-  cv.addEventListener('touchcancel',end,{passive:false});
+  function onEnd(e){
+    e.preventDefault();
+    S.sigCtx[id].drawing = false;
+  }
+
+  // Mouse
+  cv.addEventListener('mousedown',  onStart);
+  cv.addEventListener('mousemove',  onMove);
+  cv.addEventListener('mouseup',    onEnd);
+  cv.addEventListener('mouseleave', onEnd);
+  // Touch — must be non-passive to call preventDefault (stops scroll)
+  cv.addEventListener('touchstart',  onStart, { passive: false });
+  cv.addEventListener('touchmove',   onMove,  { passive: false });
+  cv.addEventListener('touchend',    onEnd,   { passive: false });
+  cv.addEventListener('touchcancel', onEnd,   { passive: false });
 }
 
-function clearSig(id,hintId){
-  const cv=document.getElementById(id);
-  const ctx=cv.getContext('2d');
-  ctx.clearRect(0,0,cv.width,cv.height);
-  S.sigCtx[id]={drawing:false,hasData:false};
-  document.getElementById(hintId).style.display='block';
+function clearSig(id, hintId){
+  const cv  = document.getElementById(id);
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  S.sigCtx[id] = { drawing: false, hasData: false };
+  document.getElementById(hintId).style.display = 'block';
 }
 
 // ─── PDF ────────────────────────────────────────────────────────
@@ -965,22 +979,21 @@ async function sharePDF(){
 
 function resetAll(){
   S.pdfBlob=null; S.pdfDataUrl=null; S.pdfFilename=null;
+  sigInitDone = false; // allow re-init on next visit to sig page
   const now=new Date();
   document.getElementById('datum').value=now.toISOString().split('T')[0];
   const days=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
   document.getElementById('tag').value=days[now.getDay()];
   ['ort','kunde','veranstaltung','gewerk','ap_ver','ap_bos','bemerkung']
     .forEach(id=>document.getElementById(id).value='');
-  // Reset success page
+  // Reset success page buttons
   ['pdfLink','iosHint','dlBtn','shareBtn'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display='none';
   });
   const link=document.getElementById('pdfLink');
-  if(link){link.href='#';}
+  if(link) link.href='#';
   buildTable();
-  clearSig('sigVer','hintVer');
-  clearSig('sigBOS','hintBOS');
   nav(0);
 }
 
