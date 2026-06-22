@@ -982,20 +982,29 @@ function buildPDF(){
   S.pdfFilename=fname;
 
   if(isIOS()){
-    // iOS: set href directly on <a> tag — Safari opens it natively as PDF
-    const link=document.getElementById('pdfLink');
-    link.href=S.pdfDataUrl;
-    link.download=fname;
-    link.style.display='block';
-    document.getElementById('iosHint').style.display='block';
-    // Also offer native share if available
+    // iOS: only show share button
     if(navigator.share && navigator.canShare){
       document.getElementById('shareBtn').style.display='block';
+    } else {
+      // Fallback if share not available
+      const link=document.getElementById('pdfLink');
+      link.href=S.pdfDataUrl;
+      link.download=fname;
+      link.style.display='block';
     }
   } else {
-    document.getElementById('dlBtn').style.display='block';
-    if(navigator.share && navigator.canShare){
-      document.getElementById('shareBtn').style.display='block';
+    // Desktop: show download; mobile Android: only share
+    if(/Mobi|Android/i.test(navigator.userAgent)){
+      if(navigator.share && navigator.canShare){
+        document.getElementById('shareBtn').style.display='block';
+      } else {
+        document.getElementById('dlBtn').style.display='block';
+      }
+    } else {
+      document.getElementById('dlBtn').style.display='block';
+      if(navigator.share && navigator.canShare){
+        document.getElementById('shareBtn').style.display='block';
+      }
     }
   }
   nav(4);
