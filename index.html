@@ -310,7 +310,7 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
 <div class="toast" id="toast"></div>
 
 <!-- PAGE 0: EINSATZDATEN -->
-<div class="page active" id="p0">
+<div class="page active" id="pg0">
   <div class="ph" style="margin-top:1rem;">
     <h1>Einsatzdaten</h1>
     <p>Allgemeine Informationen zum Einsatz</p>
@@ -379,7 +379,7 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
 </div>
 
 <!-- PAGE 1: MITARBEITER -->
-<div class="page" id="p1">
+<div class="page" id="pg1">
   <div class="ph" style="margin-top:1rem;">
     <h1>Mitarbeiter &amp; Zeiten</h1>
     <p>Stunden werden automatisch berechnet</p>
@@ -396,7 +396,7 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
             <th>Tätigkeit</th>
             <th>Von</th>
             <th>Bis</th>
-            <th>Pause</th>
+            <th>Pause (Min.)</th>
             <th>Std.</th>
           </tr>
         </thead>
@@ -419,7 +419,7 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
 </div>
 
 <!-- PAGE 2: PRÜFEN -->
-<div class="page" id="p2">
+<div class="page" id="pg2">
   <div class="ph" style="margin-top:1rem;">
     <h1>Prüfen</h1>
     <p>Alle Angaben kontrollieren</p>
@@ -432,7 +432,7 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
 </div>
 
 <!-- PAGE 3: UNTERSCHRIFTEN -->
-<div class="page" id="p3">
+<div class="page" id="pg3">
   <div class="ph" style="margin-top:1rem;">
     <h1>Unterschriften</h1>
     <p>Bitte beide Unterschriften einholen</p>
@@ -465,7 +465,7 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
 </div>
 
 <!-- PAGE 4: FERTIG -->
-<div class="page" id="p4">
+<div class="page" id="pg4">
   <div class="card" style="margin-top:1rem;">
     <div class="success-wrap">
       <div class="success-icon">✓</div>
@@ -577,6 +577,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 
 // ─── TABLE ──────────────────────────────────────────────────────
+// Store last known values to detect changes via polling
+const lastVals = {};
+
 function buildTable(){
   const b=document.getElementById('maBody'); b.innerHTML='';
   for(let i=1;i<=10;i++){
@@ -585,26 +588,69 @@ function buildTable(){
       <td class="nr-cell">${i}</td>
       <td><input type="text" placeholder="Name" id="n${i}" autocomplete="off" autocorrect="off"></td>
       <td><input type="text" placeholder="Tätigkeit" id="t${i}" autocomplete="off" autocorrect="off"></td>
-      <td><input type="time" id="v${i}" onchange="calc(${i})"></td>
-      <td><input type="time" id="b${i}" onchange="calc(${i})"></td>
-      <td><input type="number" placeholder="0" min="0" max="480" id="p${i}" onchange="calc(${i})"></td>
+      <td><input type="time" id="v${i}"></td>
+      <td><input type="time" id="b${i}"></td>
+      <td><input type="number" placeholder="0" min="0" max="480" id="p${i}" inputmode="numeric"></td>
       <td class="std-cell" id="s${i}">–</td>`;
     b.appendChild(tr);
+
+    // Standard events (desktop + Android)
+    ['v','b','p'].forEach(prefix => {
+      const el = document.getElementById(prefix+i);
+      el.addEventListener('input',  () => calc(i));
+      el.addEventListener('change', () => calc(i));
+      el.addEventListener('blur',   () => calc(i));
+      el.addEventListener('keyup',  () => calc(i));
+    });
+
+    lastVals['v'+i]=''; lastVals['b'+i]=''; lastVals['p'+i]='';
   }
 }
 
+// Polling fallback for iOS Safari — checks every 400ms for value changes
+setInterval(()=>{
+  for(let i=1;i<=10;i++){
+    const v = document.getElementById('v'+i)?.value || '';
+    const b = document.getElementById('b'+i)?.value || '';
+    const p = document.getElementById('p'+i)?.value || '';
+    if(v !== lastVals['v'+i] || b !== lastVals['b'+i] || p !== lastVals['p'+i]){
+      lastVals['v'+i]=v; lastVals['b'+i]=b; lastVals['p'+i]=p;
+      calc(i);
+    }
+  }
+}, 200);
+
 function calc(i){
-  const v=document.getElementById('v'+i).value;
-  const b=document.getElementById('b'+i).value;
-  const p=parseInt(document.getElementById('p'+i).value)||0;
-  const el=document.getElementById('s'+i);
-  if(!v||!b){el.textContent='–';el.className='std-cell';return;}
-  const [vh,vm]=v.split(':').map(Number),[bh,bm]=b.split(':').map(Number);
-  let m=(bh*60+bm)-(vh*60+vm)-p;
-  if(m<0)m+=1440;
-  const h=Math.floor(m/60),mn=m%60;
-  el.textContent=mn>0?h+'h '+mn+'m':h+'h';
-  el.className='std-cell has-value';
+  const vonVal  = document.getElementById('v'+i).value;
+  const bisVal  = document.getElementById('b'+i).value;
+  const pauseVal= document.getElementById('p'+i).value;
+  const el      = document.getElementById('s'+i);
+
+  if(!vonVal || !bisVal){
+    el.textContent='–';
+    el.className='std-cell';
+    return;
+  }
+
+  const [vh,vm] = vonVal.split(':').map(Number);
+  const [bh,bm] = bisVal.split(':').map(Number);
+  const pauseMin = Math.max(0, parseInt(pauseVal) || 0);
+
+  let bruttoMin = (bh*60+bm) - (vh*60+vm);
+  if(bruttoMin < 0) bruttoMin += 1440; // Nachtschicht
+
+  const nettoMin = bruttoMin - pauseMin;
+
+  if(nettoMin <= 0){
+    el.textContent = '0h';
+    el.className = 'std-cell';
+    return;
+  }
+
+  const h  = Math.floor(nettoMin / 60);
+  const mn = nettoMin % 60;
+  el.textContent = mn > 0 ? h+'h '+mn+'m' : h+'h';
+  el.className = 'std-cell has-value';
 }
 
 // ─── NAV ────────────────────────────────────────────────────────
@@ -645,7 +691,7 @@ function buildReview(){
     const std=document.getElementById('s'+i).textContent;
     if(von&&bis){
       const [vh,vm]=von.split(':').map(Number),[bh,bm]=bis.split(':').map(Number);
-      let m=(bh*60+bm)-(vh*60+vm)-pause; if(m<0)m+=1440; totM+=m;
+      let m=(bh*60+bm)-(vh*60+vm); if(m<0)m+=1440; totM+=Math.max(0,m-pause);
     }
     cnt++;
     html+=`<div class="rv-row">
@@ -865,8 +911,8 @@ function buildPDF(){
 
     if(von&&bis){
       const[vh,vm]=von.split(':').map(Number),[bh,bm]=bis.split(':').map(Number);
-      let m=(bh*60+bm)-(vh*60+vm)-(parseInt(pause)||0);
-      if(m<0)m+=1440;totM+=m;
+      let m=(bh*60+bm)-(vh*60+vm);
+      if(m<0)m+=1440;totM+=Math.max(0,m-(parseInt(pause)||0));
     }
     y+=rH;
   }
