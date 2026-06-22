@@ -472,27 +472,11 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
       <h2>Rapport abgeschlossen</h2>
       <p id="successMsg">Der Einsatzrapport wurde erfolgreich erstellt.</p>
 
-      <!-- iOS: direkter Link auf data-URL, kein JS-Download nötig -->
-      <a id="pdfLink" href="#" target="_blank"
-         style="display:none;text-decoration:none;width:100%">
-        <button class="btn btn-primary btn-full" type="button">PDF öffnen &amp; sichern</button>
-      </a>
-
-      <!-- iOS Anleitung -->
-      <div id="iosHint" style="display:none;background:var(--light);border:1px solid var(--border);border-radius:var(--radius);padding:0.9rem 1rem;margin-top:0.75rem;text-align:left;">
-        <p style="font-size:13px;font-weight:700;margin-bottom:0.4rem;">So speicherst du das PDF:</p>
-        <p style="font-size:13px;color:var(--gray);line-height:1.7;">
-          1. Auf <strong style="color:var(--black)">„PDF öffnen"</strong> tippen<br>
-          2. Im PDF unten auf das <strong style="color:var(--black)">Teilen-Symbol</strong> ☐↑ tippen<br>
-          3. <strong style="color:var(--black)">„In Dateien sichern"</strong> oder <strong style="color:var(--black)">per Mail senden</strong> wählen
-        </p>
-      </div>
-
-      <!-- Desktop + Android -->
+      <!-- Desktop: Download -->
       <button id="dlBtn" class="btn btn-primary btn-full" onclick="dlPDF()" style="display:none;">PDF herunterladen</button>
 
-      <!-- Native Share (Android / iOS falls unterstützt) -->
-      <button id="shareBtn" class="btn btn-ghost btn-full" onclick="sharePDF()" style="display:none;margin-top:0.5rem;">PDF teilen ↑</button>
+      <!-- Mobil (iOS + Android) + Desktop falls Share verfügbar -->
+      <button id="shareBtn" class="btn btn-primary btn-full" onclick="sharePDF()" style="display:none;">PDF teilen ↑</button>
 
       <button class="btn btn-ghost btn-full" onclick="resetAll()" style="margin-top:0.75rem;">Neuen Rapport erstellen</button>
     </div>
@@ -568,11 +552,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Show install tip if on mobile and not standalone
   if(/Mobi|Android/i.test(navigator.userAgent) && !window.matchMedia('(display-mode: standalone)').matches){
     document.getElementById('installBanner').style.display='flex';
-  }
-
-  // Show native share button on mobile
-  if(navigator.share){
-    document.getElementById('shareBtn').style.display='block';
   }
 });
 
@@ -981,30 +960,15 @@ function buildPDF(){
   const fname=`BOS_Rapport_${kunde2}_${datum2}.pdf`;
   S.pdfFilename=fname;
 
-  if(isIOS()){
-    // iOS: only show share button
+  const isMobile = isIOS() || /Mobi|Android/i.test(navigator.userAgent);
+  if(isMobile){
+    // Mobil: nur Teilen-Button
+    document.getElementById('shareBtn').style.display='block';
+  } else {
+    // Desktop: Download + Teilen falls verfügbar
+    document.getElementById('dlBtn').style.display='block';
     if(navigator.share && navigator.canShare){
       document.getElementById('shareBtn').style.display='block';
-    } else {
-      // Fallback if share not available
-      const link=document.getElementById('pdfLink');
-      link.href=S.pdfDataUrl;
-      link.download=fname;
-      link.style.display='block';
-    }
-  } else {
-    // Desktop: show download; mobile Android: only share
-    if(/Mobi|Android/i.test(navigator.userAgent)){
-      if(navigator.share && navigator.canShare){
-        document.getElementById('shareBtn').style.display='block';
-      } else {
-        document.getElementById('dlBtn').style.display='block';
-      }
-    } else {
-      document.getElementById('dlBtn').style.display='block';
-      if(navigator.share && navigator.canShare){
-        document.getElementById('shareBtn').style.display='block';
-      }
     }
   }
   nav(4);
@@ -1044,12 +1008,10 @@ function resetAll(){
   ['ort','kunde','veranstaltung','gewerk','ap_ver','ap_bos','bemerkung']
     .forEach(id=>document.getElementById(id).value='');
   // Reset success page buttons
-  ['pdfLink','iosHint','dlBtn','shareBtn'].forEach(id=>{
+  ['dlBtn','shareBtn'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display='none';
   });
-  const link=document.getElementById('pdfLink');
-  if(link) link.href='#';
   buildTable();
   nav(0);
 }
