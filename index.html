@@ -346,7 +346,16 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
     <div class="row3">
       <div class="field">
         <label>Kunde</label>
-        <input type="text" id="kunde" placeholder="Kundenname" autocomplete="off">
+        <div class="select-wrap">
+          <select id="kundeSelect" onchange="onKundeSelect()">
+            <option value="">– Kunde wählen –</option>
+            <option value="Kulturladen e.V">Kulturladen e.V</option>
+            <option value="HTWG Strandbar">HTWG Strandbar</option>
+            <option value="OrangeX">OrangeX</option>
+            <option value="__other__">Andere (manuell)…</option>
+          </select>
+        </div>
+        <input type="text" id="kunde" placeholder="Kundenname eingeben" autocomplete="off" style="display:none;margin-top:0.5rem;">
       </div>
       <div class="field">
         <label>Veranstaltung</label>
@@ -406,6 +415,20 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
         <tbody id="maBody"></tbody>
       </table>
     </div>
+    <datalist id="maList">
+      <option value="Julius D."></option>
+      <option value="Matthis R."></option>
+      <option value="Jürgen K."></option>
+      <option value="Robin B."></option>
+      <option value="Georgi O."></option>
+      <option value="Felix S."></option>
+      <option value="Alex M."></option>
+      <option value="Kim S."></option>
+      <option value="Darius H."></option>
+      <option value="Idris N."></option>
+      <option value="Elias F."></option>
+      <option value="Deniz Y."></option>
+    </datalist>
   </div>
 
   <div class="card">
@@ -568,7 +591,7 @@ function buildTable(){
     const tr=document.createElement('tr');
     tr.innerHTML=`
       <td class="nr-cell">${i}</td>
-      <td><input type="text" placeholder="Name" id="n${i}" autocomplete="off" autocorrect="off"></td>
+      <td><input type="text" placeholder="Name" id="n${i}" list="maList" autocomplete="off" autocorrect="off"></td>
       <td><input type="text" placeholder="Tätigkeit" id="t${i}" autocomplete="off" autocorrect="off"></td>
       <td><input type="time" id="v${i}"></td>
       <td><input type="time" id="b${i}"></td>
@@ -633,6 +656,22 @@ function calc(i){
   const mn = nettoMin % 60;
   el.textContent = mn > 0 ? h+'h '+mn+'m' : h+'h';
   el.className = 'std-cell has-value';
+}
+
+// ─── KUNDEN-AUSWAHL ─────────────────────────────────────────────
+function onKundeSelect(){
+  const sel = document.getElementById('kundeSelect');
+  const inp = document.getElementById('kunde');
+  if(sel.value === '__other__'){
+    // Abweichender Kunde → manuelles Feld zeigen
+    inp.style.display = 'block';
+    inp.value = '';
+    inp.focus();
+  } else {
+    // Vorgegebener Kunde (oder leer) → Feld verbergen, Wert übernehmen
+    inp.style.display = 'none';
+    inp.value = sel.value;
+  }
 }
 
 // ─── ZEITEN AUS ZEILE 1 ÜBERNEHMEN (eine Zeile pro Klick) ───────
@@ -1042,6 +1081,9 @@ function resetAll(){
   document.getElementById('tag').value=days[now.getDay()];
   ['ort','kunde','veranstaltung','gewerk','ap_ver','ap_bos','bemerkung']
     .forEach(id=>document.getElementById(id).value='');
+  // Kunden-Dropdown zurücksetzen
+  document.getElementById('kundeSelect').value='';
+  document.getElementById('kunde').style.display='none';
   // Reset success page buttons
   ['dlBtn','shareBtn'].forEach(id=>{
     const el=document.getElementById(id);
