@@ -386,7 +386,10 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
   </div>
 
   <div class="card">
-    <div class="card-label">Einsatzteam</div>
+    <div class="card-label" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+      <span>Einsatzteam</span>
+      <button type="button" id="copyRowBtn" onclick="copyFirstRow()" style="background:var(--light);border:1.5px solid var(--border);border-radius:6px;font-family:var(--font);font-size:11px;font-weight:600;color:var(--gray);padding:5px 10px;cursor:pointer;letter-spacing:0;text-transform:none;-webkit-tap-highlight-color:transparent;white-space:nowrap;">↓ In nächste Zeile</button>
+    </div>
     <div class="ma-scroll">
       <table class="ma-table">
         <thead>
@@ -630,6 +633,38 @@ function calc(i){
   const mn = nettoMin % 60;
   el.textContent = mn > 0 ? h+'h '+mn+'m' : h+'h';
   el.className = 'std-cell has-value';
+}
+
+// ─── ZEITEN AUS ZEILE 1 ÜBERNEHMEN (eine Zeile pro Klick) ───────
+function copyFirstRow(){
+  const taet  = document.getElementById('t1').value;
+  const von   = document.getElementById('v1').value;
+  const bis   = document.getElementById('b1').value;
+  const pause = document.getElementById('p1').value;
+
+  // Nichts zu kopieren?
+  if(!taet && !von && !bis && !pause){
+    showToast('Bitte zuerst Zeile 1 ausfüllen.');
+    return;
+  }
+
+  // Nächste Zeile finden, die noch keine Zeiten hat
+  for(let i=2;i<=10;i++){
+    const hatZeiten = document.getElementById('t'+i).value ||
+                      document.getElementById('v'+i).value ||
+                      document.getElementById('b'+i).value ||
+                      document.getElementById('p'+i).value;
+    if(!hatZeiten){
+      document.getElementById('t'+i).value = taet;
+      document.getElementById('v'+i).value = von;
+      document.getElementById('b'+i).value = bis;
+      document.getElementById('p'+i).value = pause;
+      calc(i);
+      showToast('Zeiten in Zeile '+i+' übernommen.');
+      return;
+    }
+  }
+  showToast('Alle Zeilen sind bereits befüllt.');
 }
 
 // ─── NAV ────────────────────────────────────────────────────────
