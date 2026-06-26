@@ -121,6 +121,19 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
 .ma-table input:focus{outline:none;border-color:var(--border);background:var(--light);}
 .ma-table input[type=time]{min-width:80px;}
 .ma-table input[type=number]{width:56px;text-align:center;}
+.ma-table select{
+  width:100%;padding:7px 22px 7px 6px;
+  border:1.5px solid transparent;border-radius:5px;
+  font-family:var(--font);font-size:13px;color:var(--black);
+  background:transparent;
+  transition:border-color 0.15s,background 0.15s;
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%234a4a4a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 7px center;
+  min-width:120px;
+}
+.ma-table select:focus{outline:none;border-color:var(--border);background-color:var(--light);}
+.ma-table select.cell-empty{color:#999;}
 .std-cell{
   text-align:center;font-weight:700;font-size:12px;
   color:var(--black);white-space:nowrap;padding:0 6px;min-width:50px;
@@ -415,21 +428,6 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
         <tbody id="maBody"></tbody>
       </table>
     </div>
-    <datalist id="maList">
-      <option value="Julius D."></option>
-      <option value="Jonas K."></option>
-      <option value="Matthis R."></option>
-      <option value="Jürgen K."></option>
-      <option value="Robin B."></option>
-      <option value="Georgi O."></option>
-      <option value="Felix S."></option>
-      <option value="Alex M."></option>
-      <option value="Kim S."></option>
-      <option value="Darius H."></option>
-      <option value="Idris N."></option>
-      <option value="Elias F."></option>
-      <option value="Deniz Y."></option>
-    </datalist>
   </div>
 
   <div class="card">
@@ -586,14 +584,29 @@ document.addEventListener('DOMContentLoaded', ()=>{
 // Store last known values to detect changes via polling
 const lastVals = {};
 
+// Auswahllisten
+const MA_LIST   = ['Julius D.','Matthis R.','Jürgen K.','Robin B.','Georgi O.','Felix S.','Alex M.','Kim S.','Darius H.','Idris N.','Elias F.','Deniz Y.'];
+const TAET_LIST = ['Sicherheit','Ordnung','Ladendetektiv'];
+
+function buildSelectHTML(kind, i){
+  const list = kind==='n' ? MA_LIST : TAET_LIST;
+  const ph   = kind==='n' ? 'Name' : 'Tätigkeit';
+  let html = `<select id="${kind}${i}" class="cell-empty" onchange="onCellSelect('${kind}',${i})">`;
+  html += `<option value="">– ${ph} –</option>`;
+  list.forEach(v => { html += `<option value="${v}">${v}</option>`; });
+  html += `<option value="__other__">Andere (manuell)…</option>`;
+  html += `</select>`;
+  return html;
+}
+
 function buildTable(){
   const b=document.getElementById('maBody'); b.innerHTML='';
   for(let i=1;i<=10;i++){
     const tr=document.createElement('tr');
     tr.innerHTML=`
       <td class="nr-cell">${i}</td>
-      <td><input type="text" placeholder="Name" id="n${i}" list="maList" autocomplete="off" autocorrect="off"></td>
-      <td><input type="text" placeholder="Tätigkeit" id="t${i}" autocomplete="off" autocorrect="off"></td>
+      <td>${buildSelectHTML('n',i)}</td>
+      <td>${buildSelectHTML('t',i)}</td>
       <td><input type="time" id="v${i}"></td>
       <td><input type="time" id="b${i}"></td>
       <td><input type="number" placeholder="0" min="0" max="480" id="p${i}" inputmode="numeric"></td>
@@ -610,6 +623,62 @@ function buildTable(){
     });
 
     lastVals['v'+i]=''; lastVals['b'+i]=''; lastVals['p'+i]='';
+  }
+}
+
+// Dropdown-Auswahl in Tabellenzelle
+function onCellSelect(kind, i){
+  const sel = document.getElementById(kind+i);
+  // graue Platzhalterfarbe nur bei leerer Auswahl
+  sel.classList.toggle('cell-empty', sel.value==='');
+  if(sel.value === '__other__'){
+    cellToInput(kind, i, '');
+  }
+}
+
+// Zelle in freies Textfeld umwandeln
+function cellToInput(kind, i, val){
+  const old = document.getElementById(kind+i);
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.id = kind+i;
+  inp.value = val || '';
+  inp.placeholder = (kind==='n' ? 'Name eingeben' : 'Tätigkeit eingeben');
+  inp.setAttribute('autocomplete','off');
+  inp.setAttribute('autocorrect','off');
+  // Leer lassen + verlassen → zurück zum Dropdown
+  inp.addEventListener('blur', () => {
+    if(inp.value.trim() === '') cellToSelect(kind, i, '');
+  });
+  old.replaceWith(inp);
+  inp.focus();
+}
+
+// Zelle zurück in Dropdown umwandeln
+function cellToSelect(kind, i, val){
+  const old = document.getElementById(kind+i);
+  const tmp = document.createElement('div');
+  tmp.innerHTML = buildSelectHTML(kind, i);
+  const sel = tmp.firstElementChild;
+  old.replaceWith(sel);
+  const isPreset = (kind==='n' ? MA_LIST : TAET_LIST).includes(val);
+  if(isPreset){ sel.value = val; sel.classList.remove('cell-empty'); }
+}
+
+// Wert setzen (für Kopierfunktion) — wählt Dropdown oder erzeugt Textfeld
+function applyCellValue(kind, i, value){
+  const el = document.getElementById(kind+i);
+  const isPreset = (kind==='n' ? MA_LIST : TAET_LIST).includes(value) || value==='';
+  if(isPreset){
+    if(el.tagName==='SELECT'){
+      el.value = value;
+      el.classList.toggle('cell-empty', value==='');
+    } else {
+      cellToSelect(kind, i, value);
+    }
+  } else {
+    if(el.tagName==='INPUT'){ el.value = value; }
+    else { cellToInput(kind, i, value); }
   }
 }
 
@@ -695,7 +764,7 @@ function copyFirstRow(){
                       document.getElementById('b'+i).value ||
                       document.getElementById('p'+i).value;
     if(!hatZeiten){
-      document.getElementById('t'+i).value = taet;
+      applyCellValue('t', i, taet);   // Tätigkeit (Dropdown oder Freitext)
       document.getElementById('v'+i).value = von;
       document.getElementById('b'+i).value = bis;
       document.getElementById('p'+i).value = pause;
