@@ -362,12 +362,9 @@ body{font-family:var(--font);background:var(--light);color:var(--black);min-heig
         <div class="select-wrap">
           <select id="kundeSelect" onchange="onKundeSelect()">
             <option value="">– Kunde wählen –</option>
-            <option value="DM Lago">DM Lago</option>
-            <option value="DM Marktstätte">DM Marktstätte</option>
-            <option value="DM Kanzleistraße">DM Kanzleistraße</option>
             <option value="Kulturladen e.V">Kulturladen e.V</option>
             <option value="HTWG Strandbar">HTWG Strandbar</option>
-            <option value="OrangeX">OrangeX</option> 
+            <option value="OrangeX">OrangeX</option>
             <option value="__other__">Andere (manuell)…</option>
           </select>
         </div>
@@ -950,6 +947,61 @@ function isIOS(){
     (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 }
 
+// ─── MASCHINENLESBARE RAPPORT-DATEN (für DATEV/Cloud) ───────────
+function buildRapportData(){
+  const G = id => (document.getElementById(id) ? document.getElementById(id).value : '') || '';
+  const emps = [];
+  for(let i=1;i<=10;i++){
+    const name = document.getElementById('n'+i).value || '';
+    if(!name) continue;
+    const von   = document.getElementById('v'+i).value || '';
+    const bis   = document.getElementById('b'+i).value || '';
+    const pause = parseInt(document.getElementById('p'+i).value)||0;
+    let nettoMin = 0;
+    if(von && bis){
+      const a=von.split(':').map(Number), b=bis.split(':').map(Number);
+      let m=(b[0]*60+b[1])-(a[0]*60+a[1]); if(m<0)m+=1440;
+      nettoMin = Math.max(0, m - pause);
+    }
+    emps.push({
+      name: name,
+      taetigkeit: document.getElementById('t'+i).value || '',
+      von: von, bis: bis, pauseMin: pause, nettoMin: nettoMin
+    });
+  }
+  return {
+    v: 1,
+    id: 'R-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8),
+    createdAt: new Date().toISOString(),
+    tag: G('tag'),
+    datum: G('datum'),
+    ort: G('ort'),
+    kunde: (document.getElementById('kunde').value || ''),
+    veranstaltung: G('veranstaltung'),
+    gewerk: G('gewerk'),
+    apVer: G('ap_ver'),
+    apBos: G('ap_bos'),
+    bemerkung: G('bemerkung'),
+    mitarbeiter: emps
+  };
+}
+
+// Bettet die Daten unsichtbar in die PDF-Metadaten ein (base64, Unicode-sicher)
+function embedRapportData(doc){
+  try{
+    const data = buildRapportData();
+    const json = JSON.stringify(data);
+    const b64  = btoa(unescape(encodeURIComponent(json)));
+    doc.setProperties({
+      title:    'BOS Einsatzrapport',
+      subject:  'Einsatzrapport ' + (data.datum || ''),
+      author:   'BOS Group OHG',
+      creator:  'BOS Rapport App',
+      keywords: 'BOSRAPPORT_V1:' + b64
+    });
+  }catch(e){ /* Einbettung darf den PDF-Export niemals blockieren */ }
+}
+
 function finish(){
   if(!window.jspdf){showToast('PDF-Bibliothek lädt... bitte kurz warten.');setTimeout(finish,1200);return;}
   buildPDF();
@@ -959,8 +1011,7 @@ const LOGO_B64="data:image/jpeg;base64,/9j/4AAQSkZJRgABAgEAlgCWAAD/7QAsUGhvdG9za
 
 function buildPDF(){
   const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-  const ML=15,MR=195,CW=180,W=210;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});  const ML=15,MR=195,CW=180,W=210;
 
   // Header left
   doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(30);
@@ -1099,6 +1150,9 @@ function buildPDF(){
   doc.text('Der Rapport muss stets der Wahrheit entsprechend ausgefüllt und sorgfältig überprüft werden.',W/2,285,{align:'center'});
   doc.text('Die Unterschriften des BOS-Einsatzleiters und des Veranstalters gelten als zwingend.',W/2,289,{align:'center'});
 
+  // Maschinenlesbare Daten unsichtbar einbetten (für DATEV-Monatsblatt & Cloud)
+  embedRapportData(doc);
+
   S.pdfBlob=doc.output('blob');
   S.pdfDataUrl=doc.output('datauristring');
 
@@ -1201,7 +1255,7 @@ function showToast(msg){
   // Register Service Worker (inline via blob)
   if('serviceWorker' in navigator){
     const swCode = `
-const CACHE = 'bos-rapport-v1';
+const CACHE = 'bos-rapport-v3';
 const CDN = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 
 self.addEventListener('install', e => {
@@ -1219,14 +1273,27 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request).then(resp => {
-      if(e.request.url.includes('cdnjs')){
+  const req = e.request;
+
+  // jsPDF vom CDN → cache-first (ändert sich nie)
+  if(req.url.includes('cdnjs')){
+    e.respondWith(
+      caches.match(req).then(r => r || fetch(req).then(resp => {
         const clone = resp.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-      }
+        caches.open(CACHE).then(c => c.put(req, clone));
+        return resp;
+      }))
+    );
+    return;
+  }
+
+  // App-Seite & alles andere → network-first, Cache nur als Offline-Rückfall
+  e.respondWith(
+    fetch(req).then(resp => {
+      const clone = resp.clone();
+      caches.open(CACHE).then(c => c.put(req, clone));
       return resp;
-    }).catch(() => caches.match(CDN)))
+    }).catch(() => caches.match(req))
   );
 });`;
     const swBlob = new Blob([swCode], {type:'text/javascript'});
